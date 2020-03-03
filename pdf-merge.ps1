@@ -1,100 +1,87 @@
 #PDF-Merge
 #created by Florian Müller
 
-#init Powershell GUI
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
-Add-Type -AssemblyName System.Windows.Forms
-[System.Windows.Forms.Application]::EnableVisualStyles()
+#init
+#PDF Library
+Add-Type -Path '.\PdfSharp.dll'
+#Load WPF
+Add-Type -AssemblyName PresentationFramework
 
-#create form
-#erstellt mit https://poshgui.com/
-$Form                            = New-Object system.Windows.Forms.Form
-$Form.ClientSize                 = '750,349'
-$Form.text                       = "PDF Merge"
-$Form.TopMost                    = $false
-$Form.FormBorderStyle            = 'FixedDialog'
-$Form.MinimizeBox                = $false
-$Form.MaximizeBox                = $false
+#XAML GUI
+[xml]$XAMLMain = @"
+<Window x:Class="WpfApp1.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:WpfApp1"
+        mc:Ignorable="d"
+        Title="PDF-Merge" Height="480" Width="800"
+        ResizeMode="NoResize">
+    <Grid>
+        <GroupBox Header="PDF-Merge" HorizontalAlignment="Left" Height="150" Margin="37,21,0,0" VerticalAlignment="Top" Width="530">
+            <Grid HorizontalAlignment="Left" Height="111" VerticalAlignment="Top" Width="503" Margin="10,10,0,0">
+                <TextBox x:Name="SourcePath" HorizontalAlignment="Left" Height="23" Margin="10,31,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="480"/>
+                <TextBox x:Name="DestinationPath" HorizontalAlignment="Left" Height="23" Margin="10,80,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="480"/>
+                <Label x:Name="label_Source" Content="Quelle" HorizontalAlignment="Left" Margin="10,5,0,0" VerticalAlignment="Top"/>
+                <Label x:Name="label_destination" Content="Ziel" HorizontalAlignment="Left" Margin="10,54,0,0" VerticalAlignment="Top" RenderTransformOrigin="0.525,0.577"/>
+            </Grid>
+        </GroupBox>
+        <Button x:Name="ButtonStart" Content="Start" HorizontalAlignment="Left" Margin="50,300,0,0" VerticalAlignment="Top" Width="150" Height="40" FontSize="24" FontWeight="Bold"/>
+        <ProgressBar x:Name="StatusBar" HorizontalAlignment="Left" Height="30" Margin="50,379,0,0" VerticalAlignment="Top" Width="694"/>
+        <GroupBox x:Name="groupBox" Header="Dateitypen" HorizontalAlignment="Left" Height="100" Margin="37,186,0,0" VerticalAlignment="Top" Width="530"/>
+        <CheckBox x:Name="checkBox_PDF" Content="PDF" HorizontalAlignment="Left" Margin="50,210,0,0" VerticalAlignment="Top" />
+        <CheckBox x:Name="checkBox_TIFF" Content="TIFF" HorizontalAlignment="Left" Margin="50,230,0,0" VerticalAlignment="Top"/>
+        <Label x:Name="TextStatus" Content="" Margin="217,379,226.333,0" VerticalAlignment="Top" Width="350" Height="30" HorizontalContentAlignment="Center"/>
+        <Label x:Name="label_status" Content="Fortschritt:" HorizontalAlignment="Left" Margin="53,348,0,0" VerticalAlignment="Top"/>
+    </Grid>
+</Window>
+"@ -replace 'mc:Ignorable="d"','' -replace "x:N",'N' -replace '^<Win.*', '<Window'
 
-$Label1                          = New-Object system.Windows.Forms.Label
-$Label1.text                     = "Dieses Programm sucht im angegebenen Ordner alle .tif Dateien in Unterordnern und erzeugt eine PDF Datei daraus."
-$Label1.AutoSize                 = $true
-$Label1.width                    = 25
-$Label1.height                   = 50
-$Label1.location                 = New-Object System.Drawing.Point(18,22)
-$Label1.Font                     = 'Microsoft Sans Serif,10'
+#create GUI
+$window=[Windows.Markup.XamlReader]::Load( (New-Object System.Xml.XmlNodeReader $XAMLMain))
 
-$TextBox1                        = New-Object system.Windows.Forms.TextBox
-$TextBox1.multiline              = $false
-$TextBox1.width                  = 712
-$TextBox1.height                 = 20
-$TextBox1.location               = New-Object System.Drawing.Point(18,80)
-$TextBox1.Font                   = 'Microsoft Sans Serif,10'
+#Deklariere Variablen für GUI Steuerelemente
+$SourcePath = $window.FindName("SourcePath")
+$DestinationPath = $window.FindName("DestinationPath")
+$Button1 = $window.FindName("ButtonStart")
+$StatusBar = $window.FindName("StatusBar")
+$StatusText = $window.FindName("TextStatus")
+$checkbox_PDF = $window.FindName("checkBox_PDF")
+$checkbox_TIFF = $window.FindName("checkBox_TIFF")
 
-$Label2                          = New-Object system.Windows.Forms.Label
-$Label2.text                     = "Pfad Hauptordner"
-$Label2.AutoSize                 = $true
-$Label2.width                    = 25
-$Label2.height                   = 10
-$Label2.location                 = New-Object System.Drawing.Point(18,60)
-$Label2.Font                     = 'Microsoft Sans Serif,10'
+#Get CheckBox State
+#PDF
+$checkbox_PDF.Add_Checked({
+  $PDF = $true
+})
+$checkbox_PDF.Add_UnChecked({
+  $PDF = $False
+})
 
-$Button1                         = New-Object system.Windows.Forms.Button
-$Button1.text                    = "Start"
-$Button1.width                   = 107
-$Button1.height                  = 44
-$Button1.Anchor                  = 'top'
-$Button1.location                = New-Object System.Drawing.Point(18,206)
-$Button1.Font                    = 'Microsoft Sans Serif,16,style=Bold'
+#TIFF
+$checkbox_TIFF.Add_Checked({
+  $TIFF = $true
+})
+$checkbox_TIFF.Add_Unchecked({
+  $TIFF = $False
+})
 
-$ProgressBar1                    = New-Object system.Windows.Forms.ProgressBar
-$ProgressBar1.width              = 711
-$ProgressBar1.height             = 35
-$ProgressBar1.location           = New-Object System.Drawing.Point(18,294)
-$ProgressBar1.Style              = 'Continuous'
-
-$TextBox2                        = New-Object system.Windows.Forms.TextBox
-$TextBox2.multiline              = $false
-$TextBox2.width                  = 236
-$TextBox2.height                 = 20
-$TextBox2.location               = New-Object System.Drawing.Point(18,150)
-$TextBox2.Font                   = 'Microsoft Sans Serif,10'
-
-$Label3                          = New-Object system.Windows.Forms.Label
-$Label3.text                     = "Name der PDF Datei"
-$Label3.AutoSize                 = $true
-$Label3.width                    = 25
-$Label3.height                   = 10
-$Label3.location                 = New-Object System.Drawing.Point(18,130)
-$Label3.Font                     = 'Microsoft Sans Serif,10'
-
-$Label4                          = New-Object system.Windows.Forms.Label
-$Label4.text                     = "Fortschritt: "
-$Label4.AutoSize                 = $true
-$Label4.width                    = 25
-$Label4.height                   = 10
-$Label4.location                 = New-Object System.Drawing.Point(18,276)
-$Label4.Font                     = 'Microsoft Sans Serif,10'
-
-$Form.controls.AddRange(@($Label1,$TextBox1,$Label2,$Button1,$ProgressBar1,$TextBox2,$Label3,$Label4))
-
- #Script 
-  $Button1.Add_Click({
-    $ProgressBar1.Value = 10
-    $Label4.text = 'Fortschritt: Initialisierung...'
-    #Sleep Timer werden nach Aktualisierung des Progress Bar gesetzt, weil sonst der Text nicht angezeigt wird
+ #Button Click Event
+  $Button2.Add_Click({
+    $StatusBar.Value = 10
+    $StatusText.Content = 'Initialisierung...'
     Start-Sleep 1
 
     #Start Button wird deaktiviert für die Laufzeit damit das Skript nicht doppelt ausgeführt werden kann
-    $Button1.Enabled = $false
-    $workdir = $TextBox1.Text
-    $pdfname = $TextBox2.Text
+    $Button1.IsEnabled = $False
+    $workdir = $SourcePath.Text.ToString()
+    $pdfname = $DestinationPath.Text.ToString()
 
     #Fehlermeldung wenn Pfad oder Dateiname nicht ausgefüllt werden
     if (!$workdir -or !$pdfname) {
-      [Windows.Forms.MessageBox]::Show('Pfad oder Name der PDF Datei wurde nicht angegeben!', 'PDFMerge', [Windows.Forms.MessageBoxButtons]::OK, [Windows.Forms.MessageBoxIcon]::Warning)
-      $Button1.Enabled = $true
+      New-WPFMessageBox -Content "Pfad oder Name der PDF Datei wurde nicht angegeben!"
+      $Button1.IsEnabled = $true
       return
     }
     else {
@@ -112,8 +99,8 @@ $Form.controls.AddRange(@($Label1,$TextBox1,$Label2,$Button1,$ProgressBar1,$Text
       Return
     }
 
-    $ProgressBar1.Value = 30
-    $Label4.text = 'Fortschritt: Suche und kopiere Dateien...'
+    $StatusBar.Value = 30
+    $StatusText.Content = 'Fortschritt: Suche und kopiere Dateien...'
     Start-Sleep 1
 
     Try {
@@ -131,8 +118,8 @@ $Form.controls.AddRange(@($Label1,$TextBox1,$Label2,$Button1,$ProgressBar1,$Text
       Return
     }
     
-    $ProgressBar1.Value = 70
-    $Label4.text = 'Fortschritt: Konvertiere und Verarbeite PDF Dateien...'
+    $StatusBar.Value = 70
+    $StatusText.Content = 'Fortschritt: Konvertiere und Verarbeite PDF Dateien...'
     Start-Sleep 1
 
     #Prüfung ob temp Ordner leer ist, also keine Dateien gefunden wurden
@@ -152,8 +139,8 @@ $Form.controls.AddRange(@($Label1,$TextBox1,$Label2,$Button1,$ProgressBar1,$Text
       #Temp Ordner wird gelöscht, sobald die fertig zusammengeführte Datei gespeichert wurde
       while (!(Test-Path "$workdir\$($pdfname).pdf")) { Start-Sleep 5 }
 
-      $ProgressBar1.Value = 90
-      $Label4.text = 'Fortschritt: Lösche temporäre Dateien'
+      $StatusBar.Value = 90
+      $StatusText.Content = 'Fortschritt: Lösche temporäre Dateien'
       Start-Sleep 2
 
       try {
@@ -166,21 +153,39 @@ $Form.controls.AddRange(@($Label1,$TextBox1,$Label2,$Button1,$ProgressBar1,$Text
     }
 
     #Falls keine Dateien gefunden wurden und PDF24 nicht aufgerufen wurde, wird hier der temp Ordner gelöscht falls er existiert
-    $ProgressBar1.Value = 90
-    $Label4.text = 'Fortschritt: Lösche temporäre Dateien'
+    $StatusBar.Value = 90
+    $StatusText.Content = 'Fortschritt: Lösche temporäre Dateien'
     Start-Sleep 2
 
       if (Test-Path "$workdir\pdfmerge"){
         Remove-Item -path $workdir\pdfmerge -recurse -Force
       }
 
-    $ProgressBar1.Value = 100
-    $Label4.text = 'Fortschritt: Fertig'
+    $StatusBar.Value = 100
+    $StatusText.Content = 'Fortschritt: Fertig'
     Start-Sleep 1
 
     #Start Button wird wieder aktiviert
-    $Button1.Enabled = $true
+    $Button1.IsEnabled = $true
   })
 
+#PDF Merge Funktion wenn nur PDF Dateien zusammengefügt werden
+#Beispiel: Merge-PDF -path c:\pdf_files -filename c:\merged-files.pdf
+Function Merge-PDF {
+  Param ($path, $filename)
+
+  $output = New-Object PdfSharp.Pdf.PdfDocument
+  $PDFReader = [PdfSharp.Pdf.IO.PdfReader]
+  $PdfDocumentOpenMode = [PdfSharp.Pdf.IO.PdfDocumentOpenMode]
+
+  foreach ($i in (Get-ChildItem $path *.pdf -Recurse)) {
+    $input = New-Object PdfSharp.Pdf.PdfDocument
+    $input = $PdfReader::Open($i.fullname, $PdfDocumentOpenMode::Import)
+    $input.Pages | ForEach-Object{$output.AddPage($_)}
+  }
+
+  $output.Save($filename)
+}
+
 #show window
-[void]$form.ShowDialog()
+$window.ShowDialog() | Out-Null
