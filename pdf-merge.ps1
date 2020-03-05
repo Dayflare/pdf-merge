@@ -16,10 +16,12 @@ Function Click_Start {
 
   $StatusBar.Value = 10
   $StatusText.Content = 'Initialisierung...'
+  Update-Gui
   Start-Sleep 1
 
   #Start Button wird deaktiviert für die Laufzeit damit das Skript nicht doppelt ausgeführt werden kann
   $Button1.IsEnabled = $False
+  Update-Gui
 
   #Fehlermeldung wenn Pfad oder Dateiname nicht ausgefüllt werden
   if (!$workdir -or !$pdfname) {
@@ -44,6 +46,7 @@ Function Click_Start {
 
   $StatusBar.Value = 30
   $StatusText.Content = 'Suche und kopiere Dateien...'
+  Update-Gui
   Start-Sleep 1
 
   Try {
@@ -72,6 +75,7 @@ Function Click_Start {
   $StatusBar.Value = 70
   $StatusText.Content = 'Konvertiere und Verarbeite PDF Dateien...'
   Start-Sleep 1
+  Update-Gui
 
   #Prüfung ob temp Ordner leer ist, also keine Dateien gefunden wurden
   #PDF24 wird dann nicht aufgerufen, Fehlermeldungen von PDF24 können nicht abgefangen werden
@@ -84,8 +88,10 @@ Function Click_Start {
   }
   else {
     try {
+      if ($checkbox_TIFF.IsChecked) {
       #Aufruf PDF24 und Übergabe der Dokumente aus temp Ordner
       & "C:\Program Files (x86)\PDF24\pdf24-DocTool.exe" -join -profile default/good -outputfile $workdir\$($pdfname).pdf -expanddirsrecursive $workdir\pdfmerge
+      }
     }
     catch {
       write-host "Error: Can't find PDF24 Program."
@@ -95,8 +101,9 @@ Function Click_Start {
     while (!(Test-Path "$workdir\$($pdfname).pdf")) { Start-Sleep 5 }
 
     $StatusBar.Value = 90
-    $StatusText.Content = 'Lösche temporäre Dateien'
-    Start-Sleep 2
+    $StatusText.Content = 'Loesche temporaere Dateien'
+    Update-Gui
+    Start-Sleep 1
 
     try {
       Remove-Item -path $workdir\pdfmerge -recurse -Force
@@ -109,8 +116,9 @@ Function Click_Start {
 
   #Falls keine Dateien gefunden wurden und PDF24 nicht aufgerufen wurde, wird hier der temp Ordner gelöscht falls er existiert
   $StatusBar.Value = 90
-  $StatusText.Content = 'Lösche temporäre Dateien'
-  Start-Sleep 2
+  $StatusText.Content = 'Loesche temporaere Dateien'
+  Update-Gui
+  Start-Sleep 1
 
     if (Test-Path "$workdir\pdfmerge"){
       Remove-Item -path $workdir\pdfmerge -recurse -Force
@@ -118,10 +126,16 @@ Function Click_Start {
 
   $StatusBar.Value = 100
   $StatusText.Content = 'Fertig'
+  Update-Gui
   Start-Sleep 1
 
   #Start Button wird wieder aktiviert
   $Button1.IsEnabled = $true
+  Update-Gui
+
+  if ($parameters) {
+    Write-Host "Finished!"
+  }
 }
 
 #PDF Merge Funktion wenn nur PDF Dateien zusammengefügt werden
@@ -143,7 +157,9 @@ Function Merge-PDF {
 }
 
 #XAML GUI
-[xml]$XAMLMain = @"
+#$App = New-Object -TypeName Windows.Application
+$App = New-Object Windows.Application
+[xml]$XamlMain = @"
 <Window x:Class="WpfApp1.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -154,7 +170,7 @@ Function Merge-PDF {
         Title="PDF-Merge" Height="480" Width="800"
         ResizeMode="NoResize">
     <Grid>
-        <GroupBox Header="PDF-Merge" HorizontalAlignment="Left" Height="150" Margin="37,21,0,0" VerticalAlignment="Top" Width="530">
+        <GroupBox HorizontalAlignment="Left" Height="150" Margin="37,21,0,0" VerticalAlignment="Top" Width="530">
             <Grid HorizontalAlignment="Left" Height="111" VerticalAlignment="Top" Width="503" Margin="10,10,0,0">
                 <TextBox x:Name="SourcePath" HorizontalAlignment="Left" Height="23" Margin="10,31,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="480"/>
                 <TextBox x:Name="DestinationPath" HorizontalAlignment="Left" Height="23" Margin="10,80,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="480"/>
@@ -175,6 +191,16 @@ Function Merge-PDF {
 
 #create GUI
 $window=[Windows.Markup.XamlReader]::Load( (New-Object System.Xml.XmlNodeReader $XAMLMain))
+
+function Update-Gui {
+  $App.Dispatcher.Invoke([Windows.Threading.DispatcherPriority]::Background, [action]{})
+}
+
+#close handle
+$window.add_Closing({
+  $App.Shutdown()
+  Stop-Process $pid
+})
 
 #Deklariere Variablen für GUI Steuerelemente
 $SourcePath = $window.FindName("SourcePath")
@@ -202,5 +228,5 @@ else {
 
 #show window
 if ($parameters -eq $false) {
-  $window.ShowDialog() | Out-Null
+  $App.Run($window)
 }
