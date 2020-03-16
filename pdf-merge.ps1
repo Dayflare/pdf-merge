@@ -25,8 +25,11 @@ Function Click_Start {
 
   #Fehlermeldung wenn Pfad oder Dateiname nicht ausgefüllt werden
   if (!$workdir -or !$pdfname) {
-    New-WPFMessageBox -Content "Pfad oder Name der PDF Datei wurde nicht angegeben!"
+    [System.Windows.MessageBox]::Show("Pfad oder Name der PDF Datei wurde nicht angegeben!")
     $Button1.IsEnabled = $true
+    $StatusBar.Value = 0
+    $StatusText.Content = ''
+    Update-Gui
     return
   }
   else {
@@ -212,9 +215,9 @@ $checkbox_PDF = $window.FindName("checkBox_PDF")
 $checkbox_TIFF = $window.FindName("checkBox_TIFF")
 
  #Button Click Event
-  $Button1.Add_Click({
-    Click_Start -workdir $SourcePath.Text.ToString() -pdfname $DestinationPath.Text.ToString()
-  })
+$Button1.Add_Click({
+  Click_Start -workdir $SourcePath.Text.ToString() -pdfname $DestinationPath.Text.ToString()
+})
 
 #parameter check
 If ($PSBoundParameters.ContainsKey('source') -and ($PSBoundParameters.ContainsKey('output'))) {
