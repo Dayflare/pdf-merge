@@ -6,7 +6,7 @@ param($Source, $output)
 
 #init
 #PDF Library
-Add-Type -Path '.\PdfSharp.dll'
+Add-Type -Path '.\PdfSharp-gdi.dll'
 #Load WPF
 Add-Type -AssemblyName PresentationFramework
 
@@ -44,6 +44,8 @@ Function Click_Start {
   }
   Catch {
     Write-Host "Error: Can't create Temp Directory. No read/write access."
+    [System.Windows.MessageBox]::Show("Error: Can't create Temp Directory.")
+    Cleanup
     Return
   }
 
@@ -51,6 +53,13 @@ Function Click_Start {
   $StatusText.Content = 'Suche und kopiere Dateien...'
   Update-Gui
   Start-Sleep 1
+
+  If (!$checkbox_TIFF.IsChecked -AND !$checkbox_PDF.IsChecked){
+    Write-Host "No checkbox checked. Abort."
+    [System.Windows.MessageBox]::Show("Error: Es wurde kein Dateityp ausgewaehlt.")
+    Cleanup
+    return
+  }
 
   Try {
     If ($checkbox_PDF.IsChecked) {
@@ -72,6 +81,8 @@ Function Click_Start {
   }
   Catch {
     Write-Host "Error: Can't find or copy files."
+    [System.Windows.MessageBox]::Show("Error: Can't find or copy files.")
+    Cleanup
     Return
   }
   
@@ -98,34 +109,27 @@ Function Click_Start {
     }
     catch {
       write-host "Error: Can't find PDF24 Program."
+      Cleanup
       return
     }
     #Temp Ordner wird gelöscht, sobald die fertig zusammengeführte Datei gespeichert wurde
     while (!(Test-Path "$workdir\$($pdfname).pdf")) { Start-Sleep 5 }
-
-    $StatusBar.Value = 90
-    $StatusText.Content = 'Loesche temporaere Dateien'
-    Update-Gui
-    Start-Sleep 1
-
-    try {
-      Remove-Item -path $workdir\pdfmerge -recurse -Force
-    }
-    catch {
-      write-host "Error: Can't delete temp files. No read/write access."
-      return
-    }
+    Cleanup
   }
 
   #Falls keine Dateien gefunden wurden und PDF24 nicht aufgerufen wurde, wird hier der temp Ordner gelöscht falls er existiert
+  Cleanup
+}
+
+Function Cleanup {
   $StatusBar.Value = 90
   $StatusText.Content = 'Loesche temporaere Dateien'
   Update-Gui
   Start-Sleep 1
 
-    if (Test-Path "$workdir\pdfmerge"){
-      Remove-Item -path $workdir\pdfmerge -recurse -Force
-    }
+  if (Test-Path "$workdir\pdfmerge"){
+    Remove-Item -path $workdir\pdfmerge -recurse -Force
+  }
 
   $StatusBar.Value = 100
   $StatusText.Content = 'Fertig'
@@ -146,22 +150,22 @@ Function Click_Start {
 Function Merge-PDF {
   Param ($path, $filename)
 
-  $output = New-Object PdfSharp.Pdf.PdfDocument
-  $PDFReader = [PdfSharp.Pdf.IO.PdfReader]
-  $PdfDocumentOpenMode = [PdfSharp.Pdf.IO.PdfDocumentOpenMode]
+  $pdf = New-Object PdfSharp.Pdf.PdfDocument
 
-  foreach ($i in (Get-ChildItem $path *.pdf -Recurse)) {
-    $input = New-Object PdfSharp.Pdf.PdfDocument
-    $input = $PdfReader::Open($i.fullname, $PdfDocumentOpenMode::Import)
-    $input.Pages | ForEach-Object{$output.AddPage($_)}
+  foreach ($file in (Get-ChildItem $path *.pdf -Recurse)) {
+    $document = [PdfSharp.Pdf.IO.PdfReader]::Open($file.FullName, [PdfSharp.Pdf.IO.PdfDocumentOpenMode]::Import)
+
+    for ($index = 0; $index -lt $document.PageCount; $index++){
+      $page = $Document.Pages[$index]
+      $null = $pdf.AddPage($page)
+    }
   }
-
-  $output.Save($filename)
+  $pdf.Save($filename)
 }
 
 #XAML GUI
 #$App = New-Object -TypeName Windows.Application
-$App = New-Object Windows.Application
+#$App = New-Object Windows.Application
 [xml]$XamlMain = @"
 <Window x:Class="WpfApp1.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -175,10 +179,10 @@ $App = New-Object Windows.Application
     <Grid>
         <GroupBox HorizontalAlignment="Left" Height="150" Margin="37,21,0,0" VerticalAlignment="Top" Width="530">
             <Grid HorizontalAlignment="Left" Height="111" VerticalAlignment="Top" Width="503" Margin="10,10,0,0">
-                <TextBox x:Name="SourcePath" HorizontalAlignment="Left" Height="23" Margin="10,31,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="480"/>
-                <TextBox x:Name="DestinationPath" HorizontalAlignment="Left" Height="23" Margin="10,80,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="480"/>
+                <TextBox x:Name="SourcePath" Background="Transparent" HorizontalAlignment="Left" Height="23" Margin="10,31,0,0" TextWrapping="Wrap" VerticalAlignment="top" Width="480" AllowDrop="True" ToolTip="Ordnerpfad mit PDF Dateien hier eingeben"/>
+                <TextBox x:Name="DestinationPath" HorizontalAlignment="Left" Height="23" Margin="10,80,0,0" TextWrapping="Wrap" VerticalAlignment="top" Width="480" ToolTip="Dateiname der zusammengefuegten PDF Datei, ohne Dateiendung, nur der Name. Die Datei wird im angegeben Pfad unter Quelle erstellt." AllowDrop="True"/>
                 <Label x:Name="label_Source" Content="Quelle" HorizontalAlignment="Left" Margin="10,5,0,0" VerticalAlignment="Top"/>
-                <Label x:Name="label_destination" Content="Ziel" HorizontalAlignment="Left" Margin="10,54,0,0" VerticalAlignment="Top" RenderTransformOrigin="0.525,0.577"/>
+                <Label x:Name="label_destination" Content="Dateiname" HorizontalAlignment="Left" Margin="10,54,0,0" VerticalAlignment="Top" RenderTransformOrigin="0.525,0.577"/>
             </Grid>
         </GroupBox>
         <Button x:Name="ButtonStart" Content="Start" HorizontalAlignment="Left" Margin="50,300,0,0" VerticalAlignment="Top" Width="150" Height="40" FontSize="24" FontWeight="Bold"/>
@@ -193,16 +197,16 @@ $App = New-Object Windows.Application
 "@ -replace 'mc:Ignorable="d"','' -replace "x:N",'N' -replace '^<Win.*', '<Window'
 
 #create GUI
-$window=[Windows.Markup.XamlReader]::Load( (New-Object System.Xml.XmlNodeReader $XAMLMain))
+$window=[Windows.Markup.XamlReader]::Load((New-Object System.Xml.XmlNodeReader $XAMLMain))
 
 function Update-Gui {
-  $App.Dispatcher.Invoke([Windows.Threading.DispatcherPriority]::Background, [action]{})
+  $window.Dispatcher.Invoke([Windows.Threading.DispatcherPriority]::Background, [action]{})
 }
 
 #close handle
 $window.add_Closing({
-  $App.Shutdown()
-  Stop-Process $pid
+  #$App.Shutdown()
+  #Stop-Process $pid
 })
 
 #Deklariere Variablen für GUI Steuerelemente
@@ -214,9 +218,23 @@ $StatusText = $window.FindName("TextStatus")
 $checkbox_PDF = $window.FindName("checkBox_PDF")
 $checkbox_TIFF = $window.FindName("checkBox_TIFF")
 
- #Button Click Event
+$window.AllowDrop = $true
+#$SourcePath.AllowDrop = $true
+
+#Button Click Event
 $Button1.Add_Click({
   Click_Start -workdir $SourcePath.Text.ToString() -pdfname $DestinationPath.Text.ToString()
+})
+
+#Drag and Drop Event
+$window.Add_Drop({
+    $content = [string]$_.Data.GetFileDropList()
+    if ((Get-Item $content) -is [System.IO.DirectoryInfo]) {
+      $SourcePath.Text = $content
+    }
+    else {
+      write-host "dropped item not a folder, ignoring."
+    }
 })
 
 #parameter check
@@ -231,5 +249,6 @@ else {
 
 #show window
 if ($parameters -eq $false) {
-  $App.Run($window)
+  #$App.Run($window)
+  $window.ShowDialog() | Out-Null
 }
