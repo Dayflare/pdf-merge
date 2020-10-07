@@ -77,7 +77,16 @@ Function Click_Start {
       $excluded = "pdfmerge|Archiv"
     }
 
-    ForEach($File in (Get-ChildItem -Path $workdir -File -recurse -Include $included | Where-Object {$_.PSParentPath -notmatch $excluded})){
+    If ($checkbox_options_recursive.IsChecked)
+    {
+      $pathrecurse = $workdir
+    }
+    Else {
+      $pathrecurse = "$workdir\*.*"
+    }
+
+    ForEach($File in (Get-ChildItem -Path $pathrecurse -File -recurse:$checkbox_options_recursive.IsChecked -Include $included | Where-Object {$_.PSParentPath -notmatch $excluded})){
+      #Write-Host "$File"
       Copy-Item $File -Destination $workdir\pdfmerge -ErrorAction Stop
     }
   }
@@ -180,25 +189,32 @@ Function Merge-PDF {
         Title="PDF-Merge" Height="480" Width="800"
         ResizeMode="NoResize">
     <Grid>
-        <GroupBox x:Name="groupbox_Ordner" HorizontalAlignment="Left" Height="150" Margin="37,21,0,0" VerticalAlignment="Top" Width="557" Header="Ordner">
-            <Grid HorizontalAlignment="Left" Height="111" VerticalAlignment="Top" Width="503" Margin="10,10,0,0">
-                <TextBox x:Name="SourcePath" HorizontalAlignment="Left" Height="23" Margin="10,31,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="480" AllowDrop="True" ToolTip="Ordnerpfad mit PDF Dateien hier eingeben"/>
-                <TextBox x:Name="DestinationPath" HorizontalAlignment="Left" Height="23" Margin="10,80,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="480" ToolTip="Dateiname der zusammengefuegten PDF Datei, ohne Dateiendung, nur der Name. Die Datei wird im angegeben Pfad unter Quelle erstellt." AllowDrop="True"/>
-                <Label x:Name="label_Source" Content="Quelle" HorizontalAlignment="Left" Margin="10,5,0,0" VerticalAlignment="Top"/>
-                <Label x:Name="label_destination" Content="Dateiname" HorizontalAlignment="Left" Margin="10,54,0,0" VerticalAlignment="Top" RenderTransformOrigin="0.525,0.577"/>
-            </Grid>
+        <GroupBox x:Name="groupbox_Ordner" HorizontalAlignment="Left" Height="150" Margin="37,21,0,0" VerticalAlignment="Top" Width="550" Header="Ordner" AllowDrop="True">
+            <StackPanel AllowDrop="True">
+                <Label x:Name="label_Source" Content="Quelle" Margin="10,10,0,0"/>
+                <TextBox x:Name="SourcePath" Height="23" Margin="15,0,0,0" TextWrapping="Wrap" Width="480" AllowDrop="True" ToolTip="Ordnerpfad mit PDF Dateien hier eingeben" HorizontalAlignment="Left"/>
+                <Label x:Name="label_destination" Content="Dateiname" Margin="10,0,0,0"/>
+                <TextBox x:Name="DestinationPath" Height="23" Margin="15,0,0,0" TextWrapping="Wrap" Width="480" ToolTip="Dateiname der zusammengefuegten PDF Datei, ohne Dateiendung, nur der Name. Die Datei wird im angegeben Pfad unter Quelle erstellt." AllowDrop="True" HorizontalAlignment="Left"/>
+            </StackPanel>
         </GroupBox>
-        <Button x:Name="ButtonStart" Content="Start" HorizontalAlignment="Left" Margin="50,300,0,0" VerticalAlignment="Top" Width="150" Height="40" FontSize="24" FontWeight="Bold"/>
-        <ProgressBar x:Name="StatusBar" HorizontalAlignment="Left" Height="30" Margin="50,379,0,0" VerticalAlignment="Top" Width="694"/>
-        <GroupBox x:Name="groupBox_Dateitypen" Header="Dateitypen" HorizontalAlignment="Left" Height="100" Margin="37,186,0,0" VerticalAlignment="Top" Width="270"/>
-        <CheckBox x:Name="checkBox_PDF" Content="PDF" HorizontalAlignment="Left" Margin="50,210,0,0" VerticalAlignment="Top" IsChecked="True" />
-        <CheckBox x:Name="checkBox_TIFF" Content="TIFF" HorizontalAlignment="Left" Margin="50,230,0,0" VerticalAlignment="Top"/>
+        <Button x:Name="ButtonStart" Content="Start" HorizontalAlignment="Left" Margin="37,303,0,0" VerticalAlignment="Top" Width="150" Height="40" FontSize="24" FontWeight="Bold"/>
+        <ProgressBar x:Name="StatusBar" HorizontalAlignment="Left" Height="30" Margin="37,379,0,0" VerticalAlignment="Top" Width="707"/>
+        <GroupBox x:Name="groupBox_Dateitypen" Header="Dateitypen" HorizontalAlignment="Left" Height="100" Margin="37,186,0,0" VerticalAlignment="Top" Width="180">
+            <StackPanel>
+                <CheckBox x:Name="checkBox_PDF" Content="PDF" Margin="5,5,0,0" VerticalAlignment="Top" IsChecked="True" />
+                <CheckBox x:Name="checkBox_TIFF" Content="TIFF" Margin="5,5,0,0" VerticalAlignment="Top" HorizontalAlignment="Left" Width="40"/>
+            </StackPanel>
+        </GroupBox>
         <Label x:Name="TextStatus" Content="" Margin="217,379,226.333,0" VerticalAlignment="Top" Width="350" Height="30" HorizontalContentAlignment="Center"/>
-        <Label x:Name="label_status" Content="Fortschritt:" HorizontalAlignment="Left" Margin="53,348,0,0" VerticalAlignment="Top"/>
-        <GroupBox x:Name="groupBox_Ausnahmen" Header="Ausnahmen" HorizontalAlignment="Left" Height="100" Margin="324,186,0,0" VerticalAlignment="Top" Width="270"/>
-        <CheckBox x:Name="checkbox_Ausnahme_Archiv" Content="Archiv Ordner" HorizontalAlignment="Left" Margin="335,210,0,0" VerticalAlignment="Top" IsChecked="True" />
+        <Label x:Name="label_status" Content="Fortschritt:" HorizontalAlignment="Left" Margin="37,348,0,0" VerticalAlignment="Top"/>
+        <GroupBox x:Name="groupBox_Ausnahmen" Header="Ausnahmen" HorizontalAlignment="Left" Height="100" Margin="222,186,0,0" VerticalAlignment="Top" Width="180">
+            <CheckBox x:Name="checkbox_Ausnahme_Archiv" Content="Archiv Ordner" HorizontalAlignment="Left" Margin="3,8,0,0" VerticalAlignment="Top" IsChecked="True" />
+        </GroupBox>
         <Rectangle x:Name="DragandDropBox" Fill="White" HorizontalAlignment="Left" Height="256" Margin="610,30,0,0" Stroke="Black" VerticalAlignment="Top" Width="134" Cursor="Arrow"/>
         <Label x:Name="DropText" Content="Ordner hier hin &#xD;&#xA;ziehen um den &#xD;&#xA;Pfad unter Quelle&#xD;&#xA;einzutragen!" HorizontalAlignment="Left" Margin="621,119,0,0" VerticalAlignment="Top" Height="81" Width="113" Cursor="Arrow"/>
+        <GroupBox x:Name="groupBox_Optionen" Header="Optionen" HorizontalAlignment="Left" Height="100" Margin="407,186,0,0" VerticalAlignment="Top" Width="180">
+            <CheckBox x:Name="checkbox_optionen_rekursiv" Content="Rekursiv" HorizontalAlignment="Left" Margin="4,8,0,0" VerticalAlignment="Top" ToolTip="Dateien aus allen Unterordnern zusammenfassen" />
+        </GroupBox>
     </Grid>
 </Window>
 "@ -replace 'mc:Ignorable="d"','' -replace "x:N",'N' -replace '^<Win.*', '<Window'
@@ -225,9 +241,10 @@ $StatusText = $window.FindName("TextStatus")
 $checkbox_PDF = $window.FindName("checkBox_PDF")
 $checkbox_TIFF = $window.FindName("checkBox_TIFF")
 $checkbox_exclusion_Archiv = $window.FindName("checkbox_Ausnahme_Archiv")
+$checkbox_options_recursive = $window.FindName("checkbox_optionen_rekursiv")
 
 $window.AllowDrop = $true
-#$SourcePath.AllowDrop = $true
+# $SourcePath.AllowDrop = $true
 
 #Button Click Event
 $Button1.Add_Click({
@@ -239,11 +256,17 @@ $window.Add_Drop({
     $content = [string]$_.Data.GetFileDropList()
     if ((Get-Item $content) -is [System.IO.DirectoryInfo]) {
       $SourcePath.Text = $content
+
+      $DestinationName = Split-Path "$content" -Leaf
+      $Date = Get-Date -Format "yyyy-MM-dd"
+      Write-Host "suggested destination name will be: $($DestinationName)_$($Date)"
+      $DestinationPath.Text = "$DestinationName"+"_"+"$Date"
     }
     else {
       write-host "dropped item not a folder, ignoring."
     }
 })
+
 
 #parameter check
 If ($PSBoundParameters.ContainsKey('source') -and ($PSBoundParameters.ContainsKey('output'))) {
